@@ -1,7 +1,7 @@
 /**
  * @file ServiceChassis_task.c
- * @author ÂŞÖ¾Ñô (3181804071@qq.com)
- * @brief ·şÎñµ×ÅÌ
+ * @author ç½—å¿—é˜³ (3181804071@qq.com)
+ * @brief æœåŠ¡åº•ç›˜
  * @version 0.1
  * @date 2021-03-24
  * 
@@ -10,12 +10,32 @@
  */
 #include "ServiceChassis_task.h"
 
-int16_t set_spd[3] = {0};                         //ÉèÖÃËÙ¶È
-pid_type_def pid_spd[3];                          //PID½á¹¹ÌåÊı×é
-const fp32 pid_parameter[3] = {1.5f, 0.1f, 2.0f}; //PIDÏµÊı {1.5f, 0.1f, 0.0f}
-extern motor_measure_t motor_chassis[7];          //´ó½®µ×ÅÌµç»úÊı¾İ½ÓÊÕ´æ´¢½á¹¹Ìå
-uint8_t hasTask = 0;                             //ÊÇ·ñ´æÔÚ¿ÉÖ´ĞĞµÄÈÎÎñ±êÖ¾
-uint8_t receive[RECEIVE_BUFFER_MAX];              //Êı¾İ½ÓÊÕÊı×é
+int16_t set_spd[3] = {0};                         //è®¾ç½®é€Ÿåº¦
+pid_type_def pid_spd[3];                          //PIDç»“æ„ä½“æ•°ç»„
+const fp32 pid_parameter[3] = {1.5f, 0.1f, 2.0f}; //PIDç³»æ•° {1.5f, 0.1f, 0.0f}
+extern motor_measure_t motor_chassis[7];          //å¤§ç–†åº•ç›˜ç”µæœºæ•°æ®æ¥æ”¶å­˜å‚¨ç»“æ„ä½“
+uint8_t hasTask = 0;                             //æ˜¯å¦å­˜åœ¨å¯æ‰§è¡Œçš„ä»»åŠ¡æ ‡å¿—
+uint8_t receive[RECEIVE_BUFFER_MAX];              //æ•°æ®æ¥æ”¶æ•°ç»„
+
+static const uint8_t crc_table[] =
+{
+    0x00,0x31,0x62,0x53,0xc4,0xf5,0xa6,0x97,0xb9,0x88,0xdb,0xea,0x7d,0x4c,0x1f,0x2e,
+    0x43,0x72,0x21,0x10,0x87,0xb6,0xe5,0xd4,0xfa,0xcb,0x98,0xa9,0x3e,0x0f,0x5c,0x6d,
+    0x86,0xb7,0xe4,0xd5,0x42,0x73,0x20,0x11,0x3f,0x0e,0x5d,0x6c,0xfb,0xca,0x99,0xa8,
+    0xc5,0xf4,0xa7,0x96,0x01,0x30,0x63,0x52,0x7c,0x4d,0x1e,0x2f,0xb8,0x89,0xda,0xeb,
+    0x3d,0x0c,0x5f,0x6e,0xf9,0xc8,0x9b,0xaa,0x84,0xb5,0xe6,0xd7,0x40,0x71,0x22,0x13,
+    0x7e,0x4f,0x1c,0x2d,0xba,0x8b,0xd8,0xe9,0xc7,0xf6,0xa5,0x94,0x03,0x32,0x61,0x50,
+    0xbb,0x8a,0xd9,0xe8,0x7f,0x4e,0x1d,0x2c,0x02,0x33,0x60,0x51,0xc6,0xf7,0xa4,0x95,
+    0xf8,0xc9,0x9a,0xab,0x3c,0x0d,0x5e,0x6f,0x41,0x70,0x23,0x12,0x85,0xb4,0xe7,0xd6,
+    0x7a,0x4b,0x18,0x29,0xbe,0x8f,0xdc,0xed,0xc3,0xf2,0xa1,0x90,0x07,0x36,0x65,0x54,
+    0x39,0x08,0x5b,0x6a,0xfd,0xcc,0x9f,0xae,0x80,0xb1,0xe2,0xd3,0x44,0x75,0x26,0x17,
+    0xfc,0xcd,0x9e,0xaf,0x38,0x09,0x5a,0x6b,0x45,0x74,0x27,0x16,0x81,0xb0,0xe3,0xd2,
+    0xbf,0x8e,0xdd,0xec,0x7b,0x4a,0x19,0x28,0x06,0x37,0x64,0x55,0xc2,0xf3,0xa0,0x91,
+    0x47,0x76,0x25,0x14,0x83,0xb2,0xe1,0xd0,0xfe,0xcf,0x9c,0xad,0x3a,0x0b,0x58,0x69,
+    0x04,0x35,0x66,0x57,0xc0,0xf1,0xa2,0x93,0xbd,0x8c,0xdf,0xee,0x79,0x48,0x1b,0x2a,
+    0xc1,0xf0,0xa3,0x92,0x05,0x34,0x67,0x56,0x78,0x49,0x1a,0x2b,0xbc,0x8d,0xde,0xef,
+    0x82,0xb3,0xe0,0xd1,0x46,0x77,0x24,0x15,0x3b,0x0a,0x59,0x68,0xff,0xce,0x9d,0xac
+};
 
 HandleFunctionPtr handler_ptrs[0xff] = {
     NULL,                  //0x00
@@ -26,7 +46,7 @@ HandleFunctionPtr handler_ptrs[0xff] = {
 };
 
 /**
- * @brief ·şÎñµ×ÅÌFreeRTOS×ÓÈÎÎñ
+ * @brief æœåŠ¡åº•ç›˜FreeRTOSå­ä»»åŠ¡
  * 
  * @param pvParameters 
  */
@@ -35,47 +55,47 @@ void ServiceChassis_task(void const *pvParameters)
     __HAL_UART_ENABLE_IT(&huart6, UART_IT_RXNE);
     for (uint8_t i = 0; i < 3; i++)
     {
-        PID_init(&pid_spd[i], PID_POSITION, pid_parameter, 16384, 2000); //PID³õÊ¼»¯
+        PID_init(&pid_spd[i], PID_POSITION, pid_parameter, 16384, 2000); //PIDåˆå§‹åŒ–
     }
     while (1)
     {
-        HAL_CAN_RxFifo0MsgPendingCallback(&hcan1); //½ÓÊÕµç»ú»Ø´«Êı¾İ
-        receive_task_loop();                       //½ÓÊÕÊı¾İÅĞ¶Ï
+        HAL_CAN_RxFifo0MsgPendingCallback(&hcan1); //æ¥æ”¶ç”µæœºå›ä¼ æ•°æ®
+        receive_task_loop();                       //æ¥æ”¶æ•°æ®åˆ¤æ–­
         service_chassis_move();
     }
 }
 
 /**
- * @brief Êı¾İ·¢ËÍº¯Êı
+ * @brief æ•°æ®å‘é€å‡½æ•°
  * 
- * @param cmd Ö¸Áî
- * @param data_len Êı¾İ³¤¶È 
- * @param data Êı¾İ
+ * @param cmd æŒ‡ä»¤
+ * @param data_len æ•°æ®é•¿åº¦ 
+ * @param data æ•°æ®
  */
 void transmit_dataframe(uint8_t cmd, uint8_t data_len, uint8_t *data)
 {
     uint8_t buf_ptr = 0;
     uint8_t transmit_buffer[100];
-    //°üÍ·
+    //åŒ…å¤´
     transmit_buffer[buf_ptr++] = 0x55;
     transmit_buffer[buf_ptr++] = 0xaa;
 
-    //µØÖ·
+    //åœ°å€
     transmit_buffer[buf_ptr++] = HOST_ADDR;
 
-    //ÃüÁî
+    //å‘½ä»¤
     transmit_buffer[buf_ptr++] = cmd;
 
-    //Êı¾İ³¤¶È
+    //æ•°æ®é•¿åº¦
     transmit_buffer[buf_ptr++] = data_len;
 
-    //Êı¾İ
+    //æ•°æ®
     for (int i = 0; i < data_len; i++)
     {
         transmit_buffer[buf_ptr++] = data[i];
     }
 
-    //Ğ£ÑéºÍ(´ÓµØÖ·¼Óµ½Êı¾İÎ²)
+    //æ ¡éªŒå’Œ(ä»åœ°å€åŠ åˆ°æ•°æ®å°¾)
     uint8_t check_sum = sum_str(
         transmit_buffer + 2,
         transmit_buffer + 2 + 3 + data_len);
@@ -88,15 +108,15 @@ void transmit_dataframe(uint8_t cmd, uint8_t data_len, uint8_t *data)
     HAL_UART_Transmit(&huart6, transmit_buffer, buf_ptr, 20);
 }
 /**
- * ´«ËÍÒ»¸ö¼òµ¥µÄÏìÓ¦£¬½«»á×Ô¶¯·â×°Ò»¸ö¼òµ¥µÄÏìÓ¦Êı¾İ°ü
- * @param cmd ÇëÇóÖ¸Áî
+ * ä¼ é€ä¸€ä¸ªç®€å•çš„å“åº”ï¼Œå°†ä¼šè‡ªåŠ¨å°è£…ä¸€ä¸ªç®€å•çš„å“åº”æ•°æ®åŒ…
+ * @param cmd è¯·æ±‚æŒ‡ä»¤
  */
 void transmit_simple_ack(uint8_t cmd)
 {
     transmit_dataframe(reverse_byte(cmd), 0, NULL);
 }
 /**
- * @brief ÉÏÎ»»úÇëÇóµØÖ·´¦Àíº¯Êı
+ * @brief ä¸Šä½æœºè¯·æ±‚åœ°å€å¤„ç†å‡½æ•°
  * 
  * @param cmd 
  * @param data_len 
@@ -108,7 +128,7 @@ void request_addr_handler(uint8_t cmd, uint8_t data_len, uint8_t *data)
     transmit_dataframe(reverse_byte(cmd), 1, &my_address);
 }
 /**
- * @brief ÉÏÎ»»úÇëÇóËÙ¶È´¦Àíº¯Êı
+ * @brief ä¸Šä½æœºè¯·æ±‚é€Ÿåº¦å¤„ç†å‡½æ•°
  * 
  * @param cmd 
  * @param data_len 
@@ -133,14 +153,14 @@ void request_speed_handler(uint8_t cmd, uint8_t data_len, uint8_t *data)
  */
 void set_speed_handler(uint8_t cmd, uint8_t data_len, uint8_t *data)
 {
-    for (uint8_t i = 0; i < 3; i++) //½«ËÙ¶È·ÅÈë¼´½«¶Ôµç»úÉèÖÃµÄËÙ¶ÈÊı×é
+    for (uint8_t i = 0; i < 3; i++) //å°†é€Ÿåº¦æ”¾å…¥å³å°†å¯¹ç”µæœºè®¾ç½®çš„é€Ÿåº¦æ•°ç»„
     {
         set_spd[i] = (int16_t)(data[2 * i] << 8 | data[2 * i + 1]);
     }
     transmit_simple_ack(cmd);
 }
 /**
- * @brief »ØÓ¦ÉÏÎ»»úÇëÇóimuÊı¾İ
+ * @brief å›åº”ä¸Šä½æœºè¯·æ±‚imuæ•°æ®
  * 
  * @param cmd 
  * @param data_len 
@@ -149,29 +169,29 @@ void set_speed_handler(uint8_t cmd, uint8_t data_len, uint8_t *data)
 void request_imu_handler(uint8_t cmd, uint8_t data_len, uint8_t *data)
 {
     uint8_t imu_data[60];
-    memcpy(imu_data + 4, get_INS_angle_point(), 12);   //Å·À­½ÇÊı¾İy,p,r
-    memcpy(imu_data + 16, get_INS_quat_point(), 16);   //ËÄÔªÊıÊı¾İx,y,z,w
-    memcpy(imu_data + 32, get_gyro_data_point(), 12);  //½ÇËÙ¶ÈÊı¾İx,y,z
-    memcpy(imu_data + 44, get_accel_data_point(), 12); //Ïß¼ÓËÙ¶ÈÊı¾İx,y,z
+    memcpy(imu_data + 4, get_INS_angle_point(), 12);   //æ¬§æ‹‰è§’æ•°æ®y,p,r
+    memcpy(imu_data + 16, get_INS_quat_point(), 16);   //å››å…ƒæ•°æ•°æ®x,y,z,w
+    memcpy(imu_data + 32, get_gyro_data_point(), 12);  //è§’é€Ÿåº¦æ•°æ®x,y,z
+    memcpy(imu_data + 44, get_accel_data_point(), 12); //çº¿åŠ é€Ÿåº¦æ•°æ®x,y,z
     transmit_dataframe(reverse_byte(cmd), 52, imu_data);
 }
 
 /**
- * @brief ·şÎñµ×ÅÌÔË¶¯º¯Êı
+ * @brief æœåŠ¡åº•ç›˜è¿åŠ¨å‡½æ•°
  * 
  */
 void service_chassis_move()
 {
     for (uint8_t i = 0; i < 3; i++)
     {
-        PID_calc(&pid_spd[i], motor_chassis[i].speed_rpm, set_spd[i]); //PIDµ÷½Ú
+        PID_calc(&pid_spd[i], motor_chassis[i].speed_rpm, set_spd[i]); //PIDè°ƒèŠ‚
     }
-    CAN_cmd_chassis(pid_spd[0].out, pid_spd[1].out, pid_spd[2].out, 0); //Ïòµç»ú·¢ËÍËÙ¶È
+    CAN_cmd_chassis(pid_spd[0].out, pid_spd[1].out, pid_spd[2].out, 0); //å‘ç”µæœºå‘é€é€Ÿåº¦
     osDelay(2);
 }
 
 /**
- * @brief ´®¿Ú½ÓÊÕÊı¾İÅĞ¶Ïº¯Êı
+ * @brief ä¸²å£æ¥æ”¶æ•°æ®åˆ¤æ–­å‡½æ•°
  * 
  */
 
@@ -182,21 +202,21 @@ void receive_task_loop()
         uint8_t cmd = receive[3];
         uint8_t data_len = receive[4];
         uint8_t *data = &receive[5];
-        //²éÕÒÈÎÎñÖ¸Õë
+        //æŸ¥æ‰¾ä»»åŠ¡æŒ‡é’ˆ
         if (cmd < sizeof(handler_ptrs) / sizeof(HandleFunctionPtr))
-        { //·ÀÖ¹Ô½½ç
+        { //é˜²æ­¢è¶Šç•Œ
             HandleFunctionPtr handle_ptr = handler_ptrs[cmd];
-            if (handle_ptr != NULL) //·Ç¿Õ¼ì²é
+            if (handle_ptr != NULL) //éç©ºæ£€æŸ¥
             {
                 handle_ptr(cmd, data_len, data);
             }
         }
-        hasTask = 0; //Íê³ÉÈÎÎñ
+        hasTask = 0; //å®Œæˆä»»åŠ¡
     }
 }
 
 /**
- * @brief ´®¿ÚÖĞ¶Ï½ÓÊÕº¯Êı
+ * @brief ä¸²å£ä¸­æ–­æ¥æ”¶å‡½æ•°
  * 
  * @param b 
  */
@@ -206,7 +226,7 @@ void serial_interrupt(uint8_t b)
 
     if (hasTask == 1)
     {
-        // Èç¹ûÈÎÎñÎ´´¦ÀíÍê±Ï£¬ÆÁ±ÎÕâ¸öÖĞ¶Ï
+        // å¦‚æœä»»åŠ¡æœªå¤„ç†å®Œæ¯•ï¼Œå±è”½è¿™ä¸ªä¸­æ–­
         return;
     }
     receive[rxcount++] = b;
@@ -214,12 +234,12 @@ void serial_interrupt(uint8_t b)
     {
         if (rxcount >= 8)
         {
-            if (receive[1] == 0xaa &&                            //¶ş´ÎĞ£Ñé°üÍ·
-                (receive[2] == MY_ADDR || receive[2] == 0xFF) && //¼ì²éµØÖ·£¬Ö»ÓĞ±¾»úµØÖ·Óë0xFF¹ã²¥µØÖ·ÔÊĞí½ÓÊÕ
-                receive[rxcount - 1] == 0xcc &&                  //Ğ£Ñé°üÎ²
+            if (receive[1] == 0xaa &&                            //äºŒæ¬¡æ ¡éªŒåŒ…å¤´
+                (receive[2] == MY_ADDR || receive[2] == 0xFF) && //æ£€æŸ¥åœ°å€ï¼Œåªæœ‰æœ¬æœºåœ°å€ä¸0xFFå¹¿æ’­åœ°å€å…è®¸æ¥æ”¶
+                receive[rxcount - 1] == 0xcc &&                  //æ ¡éªŒåŒ…å°¾
                 receive[rxcount - 2] == 0xbb)
             {
-                //°üÍ·°üÎ²Ğ£Ñé³É¹¦£¬¼ì²éĞ£ÑéºÍ
+                //åŒ…å¤´åŒ…å°¾æ ¡éªŒæˆåŠŸï¼Œæ£€æŸ¥æ ¡éªŒå’Œ
                 if (sum_str(&receive[2],
                             &receive[rxcount - 3]) == receive[rxcount - 3])
                 {
@@ -228,20 +248,20 @@ void serial_interrupt(uint8_t b)
                 }
                 else
                 {
-                    //·¢Éú´íÎó
+                    //å‘ç”Ÿé”™è¯¯
                     rxcount = 0;
                 }
             }
             else
             {
-                //·¢Éú´íÎó
+                //å‘ç”Ÿé”™è¯¯
                 rxcount = 0;
             }
         }
     }
     else
     {
-        //·¢Éú´íÎó
+        //å‘ç”Ÿé”™è¯¯
         rxcount = 0;
     }
     rxcount = rxcount > RECEIVE_BUFFER_MAX ? 0 : rxcount;
@@ -256,7 +276,7 @@ void USART6_IRQHandler(void)
     }
 }
 /**
- * @brief ·´×ª×Ö½ÚµÄ16½øÖÆ
+ * @brief åè½¬å­—èŠ‚çš„16è¿›åˆ¶
  * 
  * @param byte 
  * @return uint8_t 
@@ -267,23 +287,26 @@ uint8_t reverse_byte(uint8_t byte)
 }
 
 /**
- * ÇóºÍº¯Êı
+ * æ±‚å’Œå‡½æ•°
  */
 uint8_t sum_str(uint8_t *begin, uint8_t *end)
 {
-    uint8_t sum = 0;
-    for (uint8_t *it = begin; it != end; it++)
+    uint8_t *ptr = begin;
+    uint8_t len = end-begin;
+    uint8_t  crc = 0x00;
+ 
+    while (len--)
     {
-        sum += *it;
+        crc = crc_table[crc ^ *ptr++];
     }
-    return sum;
+    return crc;
 }
 
 /**
- * @brief Çå¿ÕÊı×éº¯Êı
+ * @brief æ¸…ç©ºæ•°ç»„å‡½æ•°
  * 
- * @param str Ä¿±êÊı×é
- * @param size Êı×é´óĞ¡
+ * @param str ç›®æ ‡æ•°ç»„
+ * @param size æ•°ç»„å¤§å°
  */
 void clear_str(uint8_t *str, uint8_t size)
 {
