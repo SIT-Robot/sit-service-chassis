@@ -106,6 +106,7 @@ void transmit_dataframe(uint8_t cmd, uint8_t data_len, uint8_t *data)
     transmit_buffer[buf_ptr++] = 0xcc;
 
     HAL_UART_Transmit(&huart6, transmit_buffer, buf_ptr, 20);
+    clear_str(receive,20);
 }
 /**
  * 传送一个简单的响应，将会自动封装一个简单的响应数据包
@@ -251,11 +252,6 @@ void serial_interrupt(uint8_t b)
                     //发生错误
                     rxcount = 0;
                 }
-            }
-            else
-            {
-                //发生错误
-                rxcount = 0;
             }
         }
     }
